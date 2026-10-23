@@ -1,0 +1,13 @@
+{
+  "name": "claude-code-loops",
+  "description": "Review loop and docs check for Claude Code.",
+  "owner": { "name": "103kaz" },
+  "plugins": [
+    {
+      "name": "code-loops",
+      "source": "./",
+      "description": "Review loop and docs check for Claude Code.",
+      "author": { "name": "103kaz" }
+    }
+  ]
+}
