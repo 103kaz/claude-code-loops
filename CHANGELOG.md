@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.0
+
+- A PreToolUse hook blocks the first `git push` from Claude for each HEAD commit and asks Claude to run `/code-loops:review-loop` first. The retry of the same HEAD goes through; a new commit asks again.
+
 ## 0.2.0
 
 - `/code-loops:review-loop` asks at the end whether to run an independent review of the diff (a subagent that reads only the diff). It uses `.claude/review/checklist.md` when the project has one.

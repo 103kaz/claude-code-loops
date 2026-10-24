@@ -6,6 +6,10 @@ A Claude Code plugin with three skills that check a branch before a pull request
 - `/code-loops:doc-code-consistency`: checks that the documentation (README, `docs/`, `CLAUDE.md`, `CHANGELOG`, comments) matches the code, and reports contradictions, stale text and missing items with file:line evidence. It only reads, and changes files only when you ask it to fix a finding.
 - `/code-loops:init-verify`: proposes a fast `.claude/verify.sh` (lint, type check, unit tests the project already defines), shows it, and writes it only after you agree. A non-zero exit means verification failed.
 
+## Pre-push hook
+
+The plugin also registers a PreToolUse hook on Bash (`hooks/pre-push-review.sh`). When Claude runs `git push`, the first attempt for each HEAD commit is blocked with a message asking Claude to run `/code-loops:review-loop` and push again. The attempt is recorded under `$CLAUDE_PLUGIN_DATA` (default `~/.claude/plugins/data/code-loops`), so the retry of the same HEAD goes through; a new commit asks again. The hook does not check that the review actually ran. It does nothing when upstream already has HEAD, outside a git repository, or for pushes you run yourself in a terminal. To turn it off, disable the plugin.
+
 ## Install
 
 ```bash
