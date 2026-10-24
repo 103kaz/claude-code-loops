@@ -8,7 +8,7 @@ A Claude Code plugin with three skills that check a branch before a pull request
 
 ## Pre-push hook
 
-The plugin also registers a PreToolUse hook on Bash (`hooks/pre-push-review.sh`). When Claude runs `git push`, the first attempt for each HEAD commit is blocked with a message asking Claude to run `/code-loops:review-loop` and push again. The attempt is recorded under `$CLAUDE_PLUGIN_DATA` (default `~/.claude/plugins/data/code-loops`), so the retry of the same HEAD goes through; a new commit asks again. The hook does not check that the review actually ran. It does nothing when upstream already has HEAD, outside a git repository, or for pushes you run yourself in a terminal. To turn it off, disable the plugin.
+The plugin also registers a PreToolUse hook on Bash (`hooks/pre-push-review.sh`). When Claude runs `git push`, the first attempt for each HEAD commit is blocked with a message asking Claude to run `/code-loops:review-loop` and push again. The attempt is recorded under `$CLAUDE_PLUGIN_DATA` (default `~/.claude/plugins/data/code-loops`), so the retry of the same HEAD goes through; a new commit asks again. The hook does not check that the review actually ran. It does nothing when upstream already has HEAD, outside a git repository, for `--dry-run`, `--delete` and `--tags` pushes, when it cannot write the record, or for pushes you run yourself in a terminal. It follows `git -C <dir>` and `cd <dir> &&`, but it judges by the HEAD of that repository, not by the refs the push names. To turn it off, disable the plugin. `bash hooks/test-pre-push-review.sh` runs its tests (needs `jq`).
 
 ## Install
 
