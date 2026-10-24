@@ -5,14 +5,22 @@
 # It fails open: anything it cannot judge (unknown directory, no way to record
 # the attempt) lets the command run.
 
+set -f # no globbing when the command's words are split below
+
 input=$(cat)
 
 if command -v jq >/dev/null 2>&1; then
   command_line=$(printf '%s' "$input" | jq -r '.tool_input.command // empty')
   cwd=$(printf '%s' "$input" | jq -r '.cwd // empty')
 else
-  command_line=$input
-  cwd=
+  # Without jq: pick the string values out of the JSON by hand.
+  json_string() {
+    printf '%s' "$input" |
+      sed -nE 's/.*"'"$1"'"[[:space:]]*:[[:space:]]*"(([^"\\]|\\.)*)".*/\1/p' | head -1 |
+      sed -e 's/\\n/ ; /g' -e 's/\\t/ /g' -e 's/\\"/"/g' -e 's/\\\\/\\/g'
+  }
+  command_line=$(json_string command)
+  cwd=$(json_string cwd)
 fi
 [ -n "$cwd" ] || cwd=$PWD
 
@@ -23,8 +31,20 @@ masked=$(printf '%s' "$command_line" | sed -E "s/\"[^\"]*\"/Q/g; s/'[^']*'/Q/g")
 push_re='(^|[^[:alnum:]_-])git(([[:space:]]+(-C|-c)[[:space:]]+[^[:space:]]+)|([[:space:]]+--?[^[:space:]]+))*[[:space:]]+push([^[:alnum:]_-]|$)'
 printf '%s' "$masked" | grep -Eq "$push_re" || exit 0
 
-# Pushes that do not publish commits.
-printf '%s' "$masked" | grep -Eq '[[:space:]](--dry-run|-n|--delete|-d|--tags)([[:space:]]|$)' && exit 0
+# Pushes that do not publish commits. Only the words of the push itself count
+# (up to the next ; & |), not other commands on the line.
+push_args=$(printf '%s' "$masked" | grep -oE "${push_re}.*" | head -1 | sed -E 's/[;&|].*//; s/^.*[[:space:]]push//')
+tags_only=0 positional=0
+for word in $push_args; do
+  case $word in
+    --dry-run | -n | --delete | -d) exit 0 ;;
+    --tags) tags_only=1 ;;
+    -*) ;;
+    *) positional=$((positional + 1)) ;;
+  esac
+done
+# --tags alone (or with just a remote) sends tags; with a branch it sends that too.
+[ "$tags_only" = 1 ] && [ "$positional" -le 1 ] && exit 0
 
 # The repository the command acts on: `git -C <dir>`, else `cd <dir>`, else cwd.
 dir=$(printf '%s' "$command_line" | sed -nE "s/.*git[[:space:]]+-C[[:space:]]+(\"([^\"]*)\"|'([^']*)'|([^[:space:]]+)).*/\2\3\4/p" | head -1)

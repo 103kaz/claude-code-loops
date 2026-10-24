@@ -11,12 +11,22 @@ commit() { git -C "$repo" -c user.name=t -c user.email=t@t commit -q --allow-emp
 commit a
 
 fail=0
-# check <expected exit> <cwd> <command>
+# A PATH without jq, to test the fallback that parses the JSON by hand.
+mkdir "$work/nojq-bin"
+for tool in bash git sed grep cat cut find shasum head mkdir; do
+  ln -s "$(command -v "$tool")" "$work/nojq-bin/$tool"
+done
+# check <expected exit> <cwd> <command>; set NOJQ=1 to run the hook without jq
 check() {
-  local out got
-  out=$(jq -n --arg cwd "$2" --arg c "$3" '{cwd:$cwd,tool_input:{command:$c}}' | "$hook" 2>/dev/null)
+  local out got input
+  input=$(jq -n --arg cwd "$2" --arg c "$3" '{cwd:$cwd,tool_input:{command:$c}}')
+  if [ "${NOJQ:-}" = 1 ]; then
+    out=$(printf '%s' "$input" | PATH="$work/nojq-bin" bash "$hook" 2>/dev/null)
+  else
+    out=$(printf '%s' "$input" | "$hook" 2>/dev/null)
+  fi
   got=$?
-  if [ "$got" = "$1" ]; then echo "ok   $3"; else echo "FAIL $3 (expected $1, got $got) $out"; fail=1; fi
+  if [ "$got" = "$1" ]; then echo "ok   ${NOJQ:+(no jq) }$3"; else echo "FAIL ${NOJQ:+(no jq) }$3 (expected $1, got $got) $out"; fail=1; fi
 }
 new_head() { commit "$1"; }
 
@@ -38,4 +48,21 @@ check 2 "$repo" 'git push'
 check 0 "$work" 'git push'
 new_head e
 CLAUDE_PLUGIN_DATA=/proc/nope/x check 0 "$repo" 'git push'
+
+# The exemptions look only at the push's own words.
+check 0 "$repo" 'git push -d origin x'
+check 0 "$repo" 'git push origin --tags'
+check 2 "$repo" 'git push origin x && ls -d .'
+new_head f
+check 2 "$repo" 'git push origin main --tags'
+new_head g
+check 2 "$repo" 'git push -u origin x; echo -n done'
+
+# Without jq the hook still reads the command out of the JSON.
+new_head h
+NOJQ=1 check 2 "$repo" 'git push origin x'
+NOJQ=1 check 0 "$repo" 'git push origin x'
+new_head i
+NOJQ=1 check 2 "$work" "git -C \"$repo\" push"
+NOJQ=1 check 0 "$repo" "git commit -m 'note git push hook'"
 exit $fail
