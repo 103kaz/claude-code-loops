@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.1
 
 - With code-guard enabled, `/code-loops:review-loop` no longer runs `.claude/verify.sh` itself and leaves it to code-guard's verify loop, which runs only an approved script. `/code-loops:init-verify` points to `/code-guard:setup-verify`.
 
