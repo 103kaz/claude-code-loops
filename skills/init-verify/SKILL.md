@@ -7,6 +7,8 @@ description: Create .claude/verify.sh for the review-loop skill's verify step. U
 
 Propose a fast `.claude/verify.sh`, show it, and write it only after the user agrees. Keep reads small: this skill should cost few tokens.
 
+If the code-guard plugin is enabled (the `/code-guard:setup-verify` skill is available), use `/code-guard:setup-verify` instead: it also tells the user how to approve the script, which code-guard needs before it runs it.
+
 ## Steps
 
 1. List the project root once (names only). Read at most the build files that exist: `package.json` (the `scripts` block only), `pyproject.toml`, `go.mod`, `Cargo.toml`, `Makefile`. Do not read source files or CI logs.
