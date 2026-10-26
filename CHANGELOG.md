@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- With code-guard enabled, `/code-loops:review-loop` no longer runs `.claude/verify.sh` itself and leaves it to code-guard's verify loop, which runs only an approved script. `/code-loops:init-verify` points to `/code-guard:setup-verify`.
+
 ## 0.3.0
 
 - A PreToolUse hook blocks the first `git push` from Claude for each HEAD commit and asks Claude to run `/code-loops:review-loop` first. The retry of the same HEAD goes through; a new commit asks again.
