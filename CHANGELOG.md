@@ -4,7 +4,8 @@
 
 - The pre-push hook judges every `git push` on the command line, not only the first (`git push --dry-run ...; git push ...` was let through).
 - The hook records the push words with the HEAD, so a different push of the same commit (for example one that code-guard blocked first) still asks for the review.
-- The hook reads `cd ~/dir` and a `git -C` that belongs to the push itself, not one of another git command on the line.
+- The hook reads `cd ~/dir` and a `git -C` that belongs to the push itself, not one of another git command on the line. A `cd` that cannot be followed (`cd -P x`, `cd "$DIR"`, a missing directory, a subshell) no longer moves the directory the push is judged in.
+- Several pushes on one line are recorded together, so one retry of the line goes through. The record is made from the whole command, so pushes that differ only inside quotes ask separately.
 - `/code-loops:review-loop` no longer reports verification as done when code-guard does the verifying: code-guard runs only after a turn that changed files and only for an approved `.claude/verify.sh`.
 
 ## 0.3.1

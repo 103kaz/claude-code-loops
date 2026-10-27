@@ -94,24 +94,33 @@ judge() {
     return 0
   fi
   find "$state_dir" -type f -mtime +30 -delete 2>/dev/null
-
-  cat >&2 <<'EOF'
-Blocked once: this commit has not been through the review loop.
-Run /code-loops:review-loop on the branch, fix what it finds, then run the same git push again.
-If the loop leaves changes uncommitted, tell the user to commit them first; the next push of a new commit asks again.
-EOF
-  exit 2
+  return 1
 }
 
-# `cd <dir>` in an earlier segment moves the directory of the later ones.
+# `cd <dir>` in an earlier segment moves the directory of the later ones. A cd
+# that cannot be followed (an option, a variable, a directory that does not
+# exist) leaves the directory as it was; a cd inside ( ) ends with the ).
 current=$cwd
+saved='' close_prev=0 blocked=0
 while IFS= read -r segment; do
+  if [ "$close_prev" = 1 ] && [ -n "$saved" ]; then current=$saved saved=''; fi
+
   # Quoted strings become "Q", so `git commit -m "git push"` does not match and
   # `git -C "my dir" push` does.
   masked=$(printf '%s' "$segment" | sed -E "s/\"[^\"]*\"/Q/g; s/'[^']*'/Q/g")
+  case $masked in *")"*) close_prev=1 ;; *) close_prev=0 ;; esac
 
   cd_dir=$(printf '%s' "$segment" | sed -nE "s/^[[:space:]]*[({]?[[:space:]]*cd[[:space:]]+(\"([^\"]*)\"|'([^']*)'|([^[:space:]]+)).*/\2\3\4/p" | head -1)
-  [ -n "$cd_dir" ] && current=$(resolve "$current" "$cd_dir")
+  case $cd_dir in
+    '' | -* | *'$'* | *'`'*) ;;
+    *)
+      target=$(resolve "$current" "$cd_dir")
+      if [ -d "$target" ]; then
+        case $segment in *"("*) [ -n "$saved" ] || saved=$current ;; esac
+        current=$target
+      fi
+      ;;
+  esac
 
   printf '%s' "$masked" | grep -Eq "$push_re" || continue
 
@@ -134,9 +143,21 @@ while IFS= read -r segment; do
   dir=$(printf '%s' "$segment" | sed -nE "s/.*git[[:space:]]+((-c[[:space:]]+[^[:space:]]+|--?[^[:space:]]+)[[:space:]]+)*-C[[:space:]]+(\"([^\"]*)\"|'([^']*)'|([^[:space:]]+)).*/\4\5\6/p" | head -1)
   if [ -n "$dir" ]; then dir=$(resolve "$current" "$dir"); else dir=$current; fi
 
-  # shellcheck disable=SC2086 # unquoted on purpose: collapses the spacing of the words
-  judge "$dir" "$(echo $push_args)"
+  # The record is made from the whole segment (not the masked words, which hide what is inside quotes),
+  # with its spacing collapsed (unquoted on purpose).
+  # shellcheck disable=SC2086
+  judge "$dir" "$(echo $segment)" || blocked=1
 done <<EOF
 $segments
 EOF
+
+# Every push on the line is recorded before this, so one retry of the line goes through.
+if [ "$blocked" = 1 ]; then
+  cat >&2 <<'EOF'
+Blocked once: this commit has not been through the review loop.
+Run /code-loops:review-loop on the branch, fix what it finds, then run the same git push again.
+If the loop leaves changes uncommitted, tell the user to commit them first; the next push of a new commit asks again.
+EOF
+  exit 2
+fi
 exit 0

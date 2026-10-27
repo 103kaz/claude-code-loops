@@ -75,7 +75,28 @@ check 2 "$repo" 'git push origin y'
 check 0 "$repo" 'git push origin y'
 check 0 "$repo" 'git push origin x'
 
+# A cd that cannot be followed does not move the directory of the push.
+new_head p
+check 2 "$repo" '(cd /nonexist; true); git push origin x'
+new_head q
+check 2 "$repo" 'cd -P /nonexist && git push origin x'
+new_head r
+check 2 "$repo" 'cd "$NOWHERE" && git push origin x'
+
+# Several pushes on one line: one retry of the line goes through.
+new_head s
+check 2 "$repo" 'git push origin a; git push origin b'
+check 0 "$repo" 'git push origin a; git push origin b'
+
+# Words inside quotes tell two pushes apart.
+new_head t
+check 2 "$repo" 'git push origin "a b"'
+check 2 "$repo" 'git push origin "c d"'
+check 0 "$repo" 'git push origin "c d"'
+
 # Spacing and a line continuation do not change which push it is.
+new_head u
+check 2 "$repo" 'git push origin x'
 check 0 "$repo" 'git  push   origin x'
 new_head n
 check 2 "$repo" 'git push origin x'
