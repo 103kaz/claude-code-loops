@@ -13,7 +13,7 @@ commit a
 fail=0
 # A PATH without jq, to test the fallback that parses the JSON by hand.
 mkdir "$work/nojq-bin"
-for tool in bash git sed grep cat cut find shasum head mkdir; do
+for tool in bash git sed grep cat cut find shasum head mkdir awk; do
   ln -s "$(command -v "$tool")" "$work/nojq-bin/$tool"
 done
 # check <expected exit> <cwd> <command>; set NOJQ=1 to run the hook without jq
@@ -57,6 +57,64 @@ new_head f
 check 2 "$repo" 'git push origin main --tags'
 new_head g
 check 2 "$repo" 'git push -u origin x; echo -n done'
+
+# Every push on the line is judged, not only the first.
+new_head j
+check 2 "$repo" 'git push --dry-run origin x; git push origin x'
+new_head k
+check 2 "$repo" 'git push origin --tags; git push origin x'
+# A quoted separator does not start a new command.
+new_head l
+check 0 "$repo" 'git commit -m "a; git push origin x"'
+check 0 "$repo" "echo 'x | git push'"
+
+# The same commit pushed in another way asks again; the same way goes through.
+new_head m
+check 2 "$repo" 'git push origin x'
+check 2 "$repo" 'git push origin y'
+check 0 "$repo" 'git push origin y'
+check 0 "$repo" 'git push origin x'
+
+# ~ in cd is the home directory; -C is read relative to a cd before it.
+plain=$work/plain
+git init -q "$plain"
+git -C "$plain" -c user.name=t -c user.email=t@t commit -q --allow-empty -m a
+HOME=$work check 2 "$work" 'cd ~/plain && git push origin x'
+HOME=$work check 0 "$work" 'cd ~/plain && git push origin x'
+git -C "$plain" -c user.name=t -c user.email=t@t commit -q --allow-empty -m b
+check 2 "$work" 'cd plain && git -C . push origin x'
+# The -C of another git command on the line is not the push's.
+git -C "$plain" -c user.name=t -c user.email=t@t commit -q --allow-empty -m c
+check 2 "$plain" "git -C \"$work\" status && git push origin x"
+
+# Every push on the line is judged, not only the first.
+new_head j
+check 2 "$repo" 'git push --dry-run origin x; git push origin x'
+new_head k
+check 2 "$repo" 'git push origin --tags; git push origin x'
+# A quoted separator does not start a new command.
+new_head l
+check 0 "$repo" 'git commit -m "a; git push origin x"'
+check 0 "$repo" "echo 'x | git push'"
+
+# The same commit pushed in another way asks again; the same way goes through.
+new_head m
+check 2 "$repo" 'git push origin x'
+check 2 "$repo" 'git push origin y'
+check 0 "$repo" 'git push origin y'
+check 0 "$repo" 'git push origin x'
+
+# ~ in cd is the home directory; -C is read relative to a cd before it.
+plain=$work/plain
+git init -q "$plain"
+git -C "$plain" -c user.name=t -c user.email=t@t commit -q --allow-empty -m a
+HOME=$work check 2 "$work" 'cd ~/plain && git push origin x'
+HOME=$work check 0 "$work" 'cd ~/plain && git push origin x'
+git -C "$plain" -c user.name=t -c user.email=t@t commit -q --allow-empty -m b
+check 2 "$work" 'cd plain && git -C . push origin x'
+# The -C of another git command on the line is not the push's.
+git -C "$plain" -c user.name=t -c user.email=t@t commit -q --allow-empty -m c
+check 2 "$plain" "git -C \"$work\" status && git push origin x"
 
 # Without jq the hook still reads the command out of the JSON.
 new_head h
