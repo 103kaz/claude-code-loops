@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.4
+
+- The install command adds the marketplace over its https URL instead of the `103kaz/claude-code-loops` shorthand, which clones over SSH when a key is configured. No behaviour change.
+
 ## 0.3.3
 
 - The README is split into "Using it alone" and "With code-guard", and the pre-push hook section is a list.
