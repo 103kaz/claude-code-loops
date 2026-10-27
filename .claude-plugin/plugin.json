@@ -1,6 +1,6 @@
 {
   "name": "code-loops",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "Review loop and docs check for Claude Code: review and fix a branch diff until nothing is left, and check that the documentation matches the code.",
   "author": { "name": "103kaz" },
   "license": "MIT",
