@@ -1,7 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.3.3
 
+- The README is split into "Using it alone" and "With code-guard", and the pre-push hook section is a list.
 - New plugin option `pre_push_review` (default on). Set it to false to turn the pre-push hook off without disabling the plugin, for a project or a user whose own rule already asks for the review before a push. The skills are not affected.
 
 ## 0.3.2
