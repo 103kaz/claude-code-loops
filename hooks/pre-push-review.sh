@@ -8,10 +8,17 @@
 # again. Every push on the command line is judged, not only the first.
 # It fails open: anything it cannot judge (unknown directory, no way to record
 # the attempt) lets the command run.
+# The userConfig option pre_push_review (default on) turns the hook off when it is
+# false, 0, no or off.
 
 set -f # no globbing when the command's words are split below
 
 input=$(cat)
+
+# Read the input first, so that leaving early does not close the pipe under the caller.
+case $(printf '%s' "${CLAUDE_PLUGIN_OPTION_PRE_PUSH_REVIEW:-}" | tr '[:upper:]' '[:lower:]') in
+  false | 0 | no | off) exit 0 ;;
+esac
 
 if command -v jq >/dev/null 2>&1; then
   command_line=$(printf '%s' "$input" | jq -r '.tool_input.command // empty')

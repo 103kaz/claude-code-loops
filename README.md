@@ -30,7 +30,7 @@ The plugin also registers a PreToolUse hook on Bash (`hooks/pre-push-review.sh`)
 - **To push without the review**, push from a terminal. The hook does nothing for pushes you run yourself there.
 - **It does nothing** when upstream already has HEAD, outside a git repository, for `--dry-run`, `-n`, `--delete` and `-d` pushes (judged from the push's own words, not other commands on the line), for `--tags` pushes that name no branch, or when it cannot write the record.
 - **Which repository.** It follows `git -C <dir>` and `cd <dir> &&`, but it judges by the HEAD of that repository, not by the refs the push names. A `cd` it cannot follow (an option, a variable, a missing directory, one inside `( )` after the `)`) does not change the directory the push is judged in.
-- **To turn it off**, disable the plugin. `bash hooks/test-pre-push-review.sh` runs its tests (needs `jq` to build the test input; the hook itself also works without it).
+- **To turn it off**, set the plugin option `pre_push_review` to false in the `/plugin` settings screen (the skills stay available), or disable the plugin. The option takes `false`, `0`, `no` or `off`; any other value, or none, leaves the hook on. Turn it off where another rule already asks for the review before a push. `bash hooks/test-pre-push-review.sh` runs its tests (needs `jq` to build the test input; the hook itself also works without it).
 
 ## Install
 
