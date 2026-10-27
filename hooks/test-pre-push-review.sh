@@ -190,6 +190,18 @@ NOJQ=1 TRANSCRIPT=$transcript check 2 "$repo" 'git push origin x'
 printf '%s\n' '{"type":"tool_use","name":"Skill","input":{"skill":"code-loops:review-loop"}}' >>"$transcript"
 NOJQ=1 TRANSCRIPT=$transcript check 0 "$repo" 'git push origin x'
 
+# The option pre_push_review turns the hook off (false, 0, no, off, any case); on or unset it asks.
+new_head pr1
+CLAUDE_PLUGIN_OPTION_PRE_PUSH_REVIEW=false check 0 "$repo" 'git push origin x'
+CLAUDE_PLUGIN_OPTION_PRE_PUSH_REVIEW=OFF check 0 "$repo" 'git push origin x'
+CLAUDE_PLUGIN_OPTION_PRE_PUSH_REVIEW=0 check 0 "$repo" 'git push origin x'
+CLAUDE_PLUGIN_OPTION_PRE_PUSH_REVIEW=no check 0 "$repo" 'git push origin x'
+CLAUDE_PLUGIN_OPTION_PRE_PUSH_REVIEW=true check 2 "$repo" 'git push origin x'
+new_head pr1b
+CLAUDE_PLUGIN_OPTION_PRE_PUSH_REVIEW=garbage check 2 "$repo" 'git push origin x'
+new_head pr2
+CLAUDE_PLUGIN_OPTION_PRE_PUSH_REVIEW='' check 2 "$repo" 'git push origin x'
+
 # Without jq the hook still reads the command out of the JSON.
 new_head h
 NOJQ=1 check 2 "$repo" 'git push origin x'

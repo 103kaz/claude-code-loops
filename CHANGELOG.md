@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- New plugin option `pre_push_review` (default on). Set it to false to turn the pre-push hook off without disabling the plugin, for a project or a user whose own rule already asks for the review before a push. The skills are not affected.
+
 ## 0.3.2
 
 - The pre-push hook judges every `git push` on the command line, not only the first (`git push --dry-run ...; git push ...` was let through).
