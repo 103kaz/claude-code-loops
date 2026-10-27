@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.2
 
 - The pre-push hook judges every `git push` on the command line, not only the first (`git push --dry-run ...; git push ...` was let through).
 - The hook records the push words with the HEAD, so a different push of the same commit (for example one that code-guard blocked first) still asks for the review.
