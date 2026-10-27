@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # PreToolUse hook (Bash): the first `git push` for a given HEAD is blocked with
-# a request to run /code-loops:review-loop. The attempt is recorded, so a retry
-# of the same push (same HEAD, same push words) goes through. A new commit, or a
-# different push of the same commit, asks again. Every push on the command line
-# is judged, not only the first.
+# a request to run /code-loops:review-loop. The attempt is recorded together with
+# the length of the session transcript at that moment. A retry of the same push
+# (same HEAD, same push words) goes through once the transcript shows the review
+# loop was run after the block; without a readable transcript the retry goes
+# through as it is. A new commit, or a different push of the same commit, asks
+# again. Every push on the command line is judged, not only the first.
 # It fails open: anything it cannot judge (unknown directory, no way to record
 # the attempt) lets the command run.
 
@@ -14,6 +16,7 @@ input=$(cat)
 if command -v jq >/dev/null 2>&1; then
   command_line=$(printf '%s' "$input" | jq -r '.tool_input.command // empty')
   cwd=$(printf '%s' "$input" | jq -r '.cwd // empty')
+  transcript=$(printf '%s' "$input" | jq -r '.transcript_path // empty')
 else
   # Without jq: pick the string values out of the JSON by hand.
   json_string() {
@@ -23,7 +26,17 @@ else
   }
   command_line=$(json_string command)
   cwd=$(json_string cwd)
+  transcript=$(json_string transcript_path)
 fi
+
+# The review loop in a transcript (read from line $2 on): the Skill tool call, or the user's slash command.
+# The command text of a Bash call is escaped in the transcript and sits on an assistant line, and a tool
+# result carries a tool_use_id, so neither a pushed command nor a file Claude read can pass for the review.
+review_ran() {
+  local from=$(($1 + 1))
+  tail -n +"$from" "$2" 2>/dev/null | grep -Eq '"name":"Skill","input":\{"skill":"(code-loops:)?review-loop"' && return 0
+  tail -n +"$from" "$2" 2>/dev/null | grep -E '<command-name>/?code-loops:review-loop' | grep -Ev '"type":"assistant"|tool_use_id' | grep -q .
+}
 [ -n "$cwd" ] || cwd=$PWD
 
 # Most Bash calls have no push in them: leave before any work.
@@ -87,14 +100,65 @@ judge() {
   key=$(printf '%s %s %s' "$top" "$head" "$words" | { shasum || sha1sum || cksum; } 2>/dev/null | cut -d' ' -f1)
   [ -n "$key" ] || return 0
   marker=$state_dir/$key
-  [ -e "$marker" ] && return 0
+  if [ -e "$marker" ]; then
+    # Asked before: the marker holds the transcript length and path at that time (empty when there was no transcript).
+    asked=$(cat "$marker" 2>/dev/null)
+    asked_at=${asked%% *} asked_path=''
+    case $asked in *' '*) asked_path=${asked#* } ;; esac
+    case $asked_at in '' | *[!0-9]*) return 0 ;; esac
+    [ -r "$transcript" ] || return 0
+    # Only trust a transcript in the known format (it has assistant messages); an unknown one cannot be judged.
+    grep -q '"type":"assistant"' "$transcript" 2>/dev/null || return 0
+    # Another session's transcript has its own line numbers: read all of it.
+    if [ -n "$asked_path" ] && [ "$asked_path" != "$transcript" ]; then asked_at=0; fi
+    review_ran "$asked_at" "$transcript" && return 0
+    asked_again=1
+    return 1
+  fi
 
-  if ! { mkdir -p "$state_dir" && : >"$marker"; } 2>/dev/null; then
+  lines=''
+  if [ -n "$transcript" ] && [ -r "$transcript" ]; then
+    lines="$(wc -l <"$transcript" 2>/dev/null | tr -d '[:space:]') $transcript"
+  fi
+  if ! { mkdir -p "$state_dir" && printf '%s' "$lines" >"$marker"; } 2>/dev/null; then
     echo "code-loops: cannot write $state_dir, so the pre-push review request is skipped." >&2
     return 0
   fi
   find "$state_dir" -type f -mtime +30 -delete 2>/dev/null
+  first_ask=1
   return 1
+}
+
+# The -C directories of the git command that runs `push` in one command segment, one per line, in order.
+# The words are split like the shell does (quotes removed), and git's own options are skipped, so a
+# directory name that holds spaces or the word push is read as one word.
+git_c_dirs() {
+  printf '%s' "$1" | awk '
+    function flush() { if (w != "" || have) tok[++n] = w; w = ""; have = 0 }
+    {
+      s = $0; q = ""; w = ""; have = 0; n = 0
+      for (i = 1; i <= length(s); i++) {
+        c = substr(s, i, 1)
+        if (q != "") { if (c == q) q = ""; else w = w c; continue }
+        if (c == "\047" || c == "\"") { q = c; have = 1; continue }
+        if (c == " " || c == "\t") { flush(); continue }
+        w = w c
+      }
+      flush()
+      out = ""
+      for (i = 1; i <= n; i++) {
+        if (tok[i] !~ /(^|\/)git$/) continue
+        d = ""; j = i + 1
+        while (j <= n) {
+          if (tok[j] == "-C") { d = d tok[j + 1] "\n"; j += 2 }
+          else if (tok[j] == "-c") j += 2
+          else if (tok[j] ~ /^-/) j++
+          else break
+        }
+        if (tok[j] == "push") out = d
+      }
+      printf "%s", out
+    }'
 }
 
 # `cd <dir>` in an earlier segment moves the directory of the later ones. A cd
@@ -126,11 +190,14 @@ while IFS= read -r segment; do
 
   # Pushes that do not publish commits. Only the words of the push itself count.
   push_args=$(printf '%s' "$masked" | grep -oE "${push_re}.*" | head -1 | sed -E "s/^${push_re}//")
-  tags_only=0 positional=0 exempt=0
+  tags_only=0 positional=0 exempt=0 skip_next=0
   for word in $push_args; do
+    if [ "$skip_next" = 1 ]; then skip_next=0; continue; fi # the target of a redirection
     case $word in
       --dry-run | -n | --delete | -d) exempt=1 ;;
       --tags) tags_only=1 ;;
+      *'>' | *'<') skip_next=1 ;; # a redirection (>, 2>, <) with its target as the next word
+      *'>'* | *'<'*) ;; # a redirection with its target attached (>/dev/null)
       -*) ;;
       *) positional=$((positional + 1)) ;;
     esac
@@ -139,9 +206,14 @@ while IFS= read -r segment; do
   # --tags alone (or with just a remote) sends tags; with a branch it sends that too.
   [ "$tags_only" = 1 ] && [ "$positional" -le 1 ] && continue
 
-  # The repository the push acts on: `git -C <dir>` (relative to the current directory), else the current directory.
-  dir=$(printf '%s' "$segment" | sed -nE "s/.*git[[:space:]]+((-c[[:space:]]+[^[:space:]]+|--?[^[:space:]]+)[[:space:]]+)*-C[[:space:]]+(\"([^\"]*)\"|'([^']*)'|([^[:space:]]+)).*/\4\5\6/p" | head -1)
-  if [ -n "$dir" ]; then dir=$(resolve "$current" "$dir"); else dir=$current; fi
+  # The repository the push acts on: the -C options of the git command (each relative to the one before,
+  # as git reads them), starting from the current directory.
+  dir=$current
+  while IFS= read -r c_dir; do
+    [ -n "$c_dir" ] && dir=$(resolve "$dir" "$c_dir")
+  done <<EOF
+$(git_c_dirs "$segment")
+EOF
 
   # The record is made from the whole segment (not the masked words, which hide what is inside quotes),
   # with its spacing collapsed (unquoted on purpose).
@@ -153,11 +225,17 @@ EOF
 
 # Every push on the line is recorded before this, so one retry of the line goes through.
 if [ "$blocked" = 1 ]; then
-  cat >&2 <<'EOF'
+  if [ "${asked_again:-0}" = 1 ]; then
+    echo "Blocked again: /code-loops:review-loop has not been run since the last block." >&2
+    echo "Run it on the branch, fix what it finds, then run the same git push again. To push without it, the user can push from a terminal." >&2
+  fi
+  if [ "${first_ask:-0}" = 1 ]; then
+    cat >&2 <<'EOF'
 Blocked once: this commit has not been through the review loop.
 Run /code-loops:review-loop on the branch, fix what it finds, then run the same git push again.
 If the loop leaves changes uncommitted, tell the user to commit them first; the next push of a new commit asks again.
 EOF
+  fi
   exit 2
 fi
 exit 0
