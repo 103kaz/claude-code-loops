@@ -35,9 +35,11 @@ The plugin also registers a PreToolUse hook on Bash (`hooks/pre-push-review.sh`)
 ## Install
 
 ```bash
-claude plugin marketplace add 103kaz/claude-code-loops
+claude plugin marketplace add https://github.com/103kaz/claude-code-loops.git
 claude plugin install code-loops@claude-code-loops
 ```
+
+The https URL keeps the install from using an SSH key (the `103kaz/claude-code-loops` shorthand clones over SSH when a key is configured).
 
 To use it together with code-guard in one install, see [claude-code-workflow](https://github.com/103kaz/claude-code-workflow).
 
