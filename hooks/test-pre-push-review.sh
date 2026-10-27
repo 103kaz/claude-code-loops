@@ -75,34 +75,14 @@ check 2 "$repo" 'git push origin y'
 check 0 "$repo" 'git push origin y'
 check 0 "$repo" 'git push origin x'
 
-# ~ in cd is the home directory; -C is read relative to a cd before it.
-plain=$work/plain
-git init -q "$plain"
-git -C "$plain" -c user.name=t -c user.email=t@t commit -q --allow-empty -m a
-HOME=$work check 2 "$work" 'cd ~/plain && git push origin x'
-HOME=$work check 0 "$work" 'cd ~/plain && git push origin x'
-git -C "$plain" -c user.name=t -c user.email=t@t commit -q --allow-empty -m b
-check 2 "$work" 'cd plain && git -C . push origin x'
-# The -C of another git command on the line is not the push's.
-git -C "$plain" -c user.name=t -c user.email=t@t commit -q --allow-empty -m c
-check 2 "$plain" "git -C \"$work\" status && git push origin x"
-
-# Every push on the line is judged, not only the first.
-new_head j
-check 2 "$repo" 'git push --dry-run origin x; git push origin x'
-new_head k
-check 2 "$repo" 'git push origin --tags; git push origin x'
-# A quoted separator does not start a new command.
-new_head l
-check 0 "$repo" 'git commit -m "a; git push origin x"'
-check 0 "$repo" "echo 'x | git push'"
-
-# The same commit pushed in another way asks again; the same way goes through.
-new_head m
+# Spacing and a line continuation do not change which push it is.
+check 0 "$repo" 'git  push   origin x'
+new_head n
 check 2 "$repo" 'git push origin x'
-check 2 "$repo" 'git push origin y'
-check 0 "$repo" 'git push origin y'
-check 0 "$repo" 'git push origin x'
+check 0 "$repo" 'git  push origin   x'
+new_head o
+check 0 "$repo" 'git push \
+  --dry-run origin x'
 
 # ~ in cd is the home directory; -C is read relative to a cd before it.
 plain=$work/plain

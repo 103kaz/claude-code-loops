@@ -26,6 +26,12 @@ else
 fi
 [ -n "$cwd" ] || cwd=$PWD
 
+# Most Bash calls have no push in them: leave before any work.
+case $command_line in *push*) ;; *) exit 0 ;; esac
+
+# A backslash-newline continuation is one line.
+command_line=${command_line//$'\\\n'/ }
+
 # Split the command line at ; & | and newlines that are outside quotes, one
 # segment per line, so each `git push` is judged with its own words and directory.
 segments=$(printf '%s' "$command_line" | awk '
@@ -128,7 +134,8 @@ while IFS= read -r segment; do
   dir=$(printf '%s' "$segment" | sed -nE "s/.*git[[:space:]]+((-c[[:space:]]+[^[:space:]]+|--?[^[:space:]]+)[[:space:]]+)*-C[[:space:]]+(\"([^\"]*)\"|'([^']*)'|([^[:space:]]+)).*/\4\5\6/p" | head -1)
   if [ -n "$dir" ]; then dir=$(resolve "$current" "$dir"); else dir=$current; fi
 
-  judge "$dir" "$push_args"
+  # shellcheck disable=SC2086 # unquoted on purpose: collapses the spacing of the words
+  judge "$dir" "$(echo $push_args)"
 done <<EOF
 $segments
 EOF
