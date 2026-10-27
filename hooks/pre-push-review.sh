@@ -55,7 +55,7 @@ push_re='(^|[^[:alnum:]_-])git(([[:space:]]+(-C|-c)[[:space:]]+[^[:space:]]+)|([
 expand_home() {
   case $1 in
     "~") printf '%s' "$HOME" ;;
-    "~/"*) printf '%s' "$HOME/${1#"~/"}" ;;
+    \~/*) printf '%s' "$HOME/${1#\~/}" ;;
     *) printf '%s' "$1" ;;
   esac
 }
@@ -145,7 +145,7 @@ while IFS= read -r segment; do
 
   # The record is made from the whole segment (not the masked words, which hide what is inside quotes),
   # with its spacing collapsed (unquoted on purpose).
-  # shellcheck disable=SC2086
+  # shellcheck disable=SC2086,SC2116
   judge "$dir" "$(echo $segment)" || blocked=1
 done <<EOF
 $segments

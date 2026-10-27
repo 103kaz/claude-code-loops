@@ -81,6 +81,7 @@ check 2 "$repo" '(cd /nonexist; true); git push origin x'
 new_head q
 check 2 "$repo" 'cd -P /nonexist && git push origin x'
 new_head r
+# shellcheck disable=SC2016 # the variable is for the hook to see, not for this shell
 check 2 "$repo" 'cd "$NOWHERE" && git push origin x'
 
 # Several pushes on one line: one retry of the line goes through.
