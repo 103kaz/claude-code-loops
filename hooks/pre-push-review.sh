@@ -130,7 +130,7 @@ judge() {
     return 0
   fi
 
-  state_dir=${CLAUDE_PLUGIN_DATA:-${HOME}/.claude/plugins/data/code-loops}
+  state_dir=${CLAUDE_PLUGIN_DATA:-${CLAUDE_CONFIG_DIR:-${HOME}/.claude}/plugins/data/code-loops}
   key=$(record_name "$top $head $words")
   [ -n "$key" ] || return 0
   marker=$state_dir/$key
