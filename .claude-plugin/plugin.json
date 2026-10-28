@@ -1,6 +1,6 @@
 {
   "name": "code-loops",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "Review loop and docs check for Claude Code: review and fix a branch diff until nothing is left, and check that the documentation matches the code.",
   "author": { "name": "103kaz" },
   "license": "MIT",
@@ -9,7 +9,7 @@
     "pre_push_review": {
       "type": "boolean",
       "title": "Ask for the review before a push",
-      "description": "Block the first git push of each commit until /code-loops:review-loop has run. Turn it off when another rule already asks for the review before a push",
+      "description": "Block the first git push of each commit until /code-loops:review-loop has run (the commits of its fixes then go through once). Turn it off when another rule already asks for the review before a push",
       "default": true
     }
   }
