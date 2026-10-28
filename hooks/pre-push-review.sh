@@ -150,7 +150,8 @@ judge() {
   # A block at another commit: the commits the review loop's fixes add on top of the
   # blocked HEAD go through once, and only when this session's transcript shows the review loop
   # ran after the block; the record then moves to this HEAD, so the next commit asks again.
-  # A blocked HEAD that upstream already has was pushed some other way, so its block is over.
+  # A blocked HEAD that a remote-tracking ref already has was pushed some other way (another push
+  # word, a terminal), so its block is over.
   followed=0
   if [ -e "$last" ]; then
     blocked_record=$(cat "$last" 2>/dev/null)
@@ -158,7 +159,7 @@ judge() {
     case $blocked_record in *' '*) record=${blocked_record#* } ;; esac
     if [ -n "$blocked_head" ] && [ "$blocked_head" != "$head" ] &&
       git -C "$dir" merge-base --is-ancestor "$blocked_head" "$head" 2>/dev/null &&
-      ! git -C "$dir" merge-base --is-ancestor "$blocked_head" '@{u}' 2>/dev/null; then
+      [ -z "$(git -C "$dir" for-each-ref --count=1 --contains "$blocked_head" refs/remotes/ 2>/dev/null)" ]; then
       if reviewed_since "$record" strict; then
         { printf '%s' "$record" >"$marker" && rm -f "$last"; } 2>/dev/null
         return 0

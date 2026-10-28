@@ -246,6 +246,16 @@ review
 git -C "$branched" push -q -u origin other 2>/dev/null
 bcommit d
 TRANSCRIPT=$transcript check 2 "$branched" 'git push'
+# So does one pushed in another way, with no upstream set.
+bcommit e
+TRANSCRIPT=$transcript check 2 "$branched" 'git push origin y'
+review
+TRANSCRIPT=$transcript check 2 "$branched" 'git push origin HEAD:y'
+review
+TRANSCRIPT=$transcript check 0 "$branched" 'git push origin HEAD:y'
+git -C "$branched" push -q origin HEAD:y 2>/dev/null
+bcommit f
+TRANSCRIPT=$transcript check 2 "$branched" 'git push origin y'
 
 # The target of a redirection is not an argument of the push.
 new_head ad
