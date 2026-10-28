@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Without `CLAUDE_PLUGIN_DATA`, the pre-push hook keeps its record under `$CLAUDE_CONFIG_DIR/plugins/data/code-loops` (or `~/.claude/...` when `CLAUDE_CONFIG_DIR` is not set) instead of always under `~/.claude`.
+- After a block, the commits that add the review loop's fixes on top of the blocked HEAD go through on the same push from the same branch, once the transcript of the session that was blocked shows the review loop was run since the block. Before, each new commit was blocked again, so committing the fixes meant another review. This works once per block; a HEAD that does not descend from the blocked one, a different push, another branch or session, a session without a readable transcript, or a blocked HEAD that a remote-tracking ref already has asks again. The added commits are not checked, and the grace has no time limit until it is used.
+
 ## 0.3.4
 
 - The install command adds the marketplace over its https URL instead of the `103kaz/claude-code-loops` shorthand, which clones over SSH when a key is configured. No behaviour change.
