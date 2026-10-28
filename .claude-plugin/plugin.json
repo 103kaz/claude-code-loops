@@ -9,7 +9,7 @@
     "pre_push_review": {
       "type": "boolean",
       "title": "Ask for the review before a push",
-      "description": "Block the first git push of each commit until /code-loops:review-loop has run. Turn it off when another rule already asks for the review before a push",
+      "description": "Block the first git push of each commit until /code-loops:review-loop has run (the commits of its fixes then go through once). Turn it off when another rule already asks for the review before a push",
       "default": true
     }
   }

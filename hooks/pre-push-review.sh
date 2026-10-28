@@ -4,8 +4,10 @@
 # the length of the session transcript at that moment. A retry of the same push
 # (same HEAD, same push words) goes through once the transcript shows the review
 # loop was run after the block; without a readable transcript the retry goes
-# through as it is. A new commit, or a different push of the same commit, asks
-# again. Every push on the command line is judged, not only the first.
+# through as it is. Commits added on top of the blocked HEAD (the review loop's
+# fixes) go through once in the same way. After that a new commit, or a different
+# push of the same commit, asks again. Every push on the command line is judged,
+# not only the first.
 # It fails open: anything it cannot judge (unknown directory, no way to record
 # the attempt) lets the command run.
 # The userConfig option pre_push_review (default on) turns the hook off when it is
@@ -43,6 +45,31 @@ review_ran() {
   local from=$(($1 + 1))
   tail -n +"$from" "$2" 2>/dev/null | grep -Eq '"name":"Skill","input":\{"skill":"(code-loops:)?review-loop"' && return 0
   tail -n +"$from" "$2" 2>/dev/null | grep -E '<command-name>/?code-loops:review-loop' | grep -Ev '"type":"assistant"|tool_use_id' | grep -q .
+}
+
+# reviewed_since <record> [strict]: whether a push asked before may go through. The record holds
+# the transcript length and path at the block (empty when there was no transcript). What cannot be
+# judged goes through, unless strict is given; strict also counts only the session that was blocked.
+reviewed_since() {
+  local asked=$1 unjudged=0 asked_at asked_path=''
+  [ -n "${2:-}" ] && unjudged=1
+  asked_at=${asked%% *}
+  case $asked in *' '*) asked_path=${asked#* } ;; esac
+  case $asked_at in '' | *[!0-9]*) return $unjudged ;; esac
+  [ -r "$transcript" ] || return $unjudged
+  # Only trust a transcript in the known format (it has assistant messages); an unknown one cannot be judged.
+  grep -q '"type":"assistant"' "$transcript" 2>/dev/null || return $unjudged
+  # Another session's transcript has its own line numbers: read all of it.
+  if [ -n "$asked_path" ] && [ "$asked_path" != "$transcript" ]; then
+    [ "$unjudged" = 1 ] && return 1
+    asked_at=0
+  fi
+  review_ran "$asked_at" "$transcript"
+}
+
+# record_name <text>: a short name for a record file.
+record_name() {
+  printf '%s' "$1" | { shasum || sha1sum || cksum; } 2>/dev/null | cut -d' ' -f1
 }
 [ -n "$cwd" ] || cwd=$PWD
 
@@ -104,23 +131,41 @@ judge() {
   fi
 
   state_dir=${CLAUDE_PLUGIN_DATA:-${HOME}/.claude/plugins/data/code-loops}
-  key=$(printf '%s %s %s' "$top" "$head" "$words" | { shasum || sha1sum || cksum; } 2>/dev/null | cut -d' ' -f1)
+  key=$(record_name "$top $head $words")
   [ -n "$key" ] || return 0
   marker=$state_dir/$key
+  # The last block of this push on this branch (same repository, branch and push words), with the
+  # blocked HEAD in front of the record. The branch is in the key because a bare `git push` names none.
+  last=$state_dir/last-$(record_name "$top $(git -C "$dir" symbolic-ref -q HEAD) $words")
   if [ -e "$marker" ]; then
-    # Asked before: the marker holds the transcript length and path at that time (empty when there was no transcript).
-    asked=$(cat "$marker" 2>/dev/null)
-    asked_at=${asked%% *} asked_path=''
-    case $asked in *' '*) asked_path=${asked#* } ;; esac
-    case $asked_at in '' | *[!0-9]*) return 0 ;; esac
-    [ -r "$transcript" ] || return 0
-    # Only trust a transcript in the known format (it has assistant messages); an unknown one cannot be judged.
-    grep -q '"type":"assistant"' "$transcript" 2>/dev/null || return 0
-    # Another session's transcript has its own line numbers: read all of it.
-    if [ -n "$asked_path" ] && [ "$asked_path" != "$transcript" ]; then asked_at=0; fi
-    review_ran "$asked_at" "$transcript" && return 0
+    if reviewed_since "$(cat "$marker" 2>/dev/null)"; then
+      # The review after the block is spent on this push: the next commit asks again.
+      case $(cat "$last" 2>/dev/null) in "$head"*) rm -f "$last" ;; esac
+      return 0
+    fi
     asked_again=1
     return 1
+  fi
+
+  # A block at another commit: the commits the review loop's fixes add on top of the
+  # blocked HEAD go through once, and only when this session's transcript shows the review loop
+  # ran after the block; the record then moves to this HEAD, so the next commit asks again.
+  # A blocked HEAD that a remote-tracking ref already has was pushed some other way (another push
+  # word, a terminal), so its block is over.
+  followed=0
+  if [ -e "$last" ]; then
+    blocked_record=$(cat "$last" 2>/dev/null)
+    blocked_head=${blocked_record%% *} record=''
+    case $blocked_record in *' '*) record=${blocked_record#* } ;; esac
+    if [ -n "$blocked_head" ] && [ "$blocked_head" != "$head" ] &&
+      git -C "$dir" merge-base --is-ancestor "$blocked_head" "$head" 2>/dev/null &&
+      [ -z "$(git -C "$dir" for-each-ref --count=1 --contains "$blocked_head" refs/remotes/ 2>/dev/null)" ]; then
+      if reviewed_since "$record" strict; then
+        { printf '%s' "$record" >"$marker" && rm -f "$last"; } 2>/dev/null
+        return 0
+      fi
+      followed=1
+    fi
   fi
 
   lines=''
@@ -131,8 +176,10 @@ judge() {
     echo "code-loops: cannot write $state_dir, so the pre-push review request is skipped." >&2
     return 0
   fi
+  printf '%s %s' "$head" "$lines" >"$last" 2>/dev/null
   find "$state_dir" -type f -mtime +30 -delete 2>/dev/null
-  first_ask=1
+  # Commits on top of a block that the review loop has not followed: the block goes on.
+  if [ "$followed" = 1 ]; then asked_again=1; else first_ask=1; fi
   return 1
 }
 
@@ -240,7 +287,7 @@ if [ "$blocked" = 1 ]; then
     cat >&2 <<'EOF'
 Blocked once: this commit has not been through the review loop.
 Run /code-loops:review-loop on the branch, fix what it finds, then run the same git push again.
-If the loop leaves changes uncommitted, tell the user to commit them first; the next push of a new commit asks again.
+If the loop leaves changes uncommitted, tell the user to commit them first; in this session, the same push of those commits on top of this one then goes through once.
 EOF
   fi
   exit 2

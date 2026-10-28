@@ -168,6 +168,95 @@ TRANSCRIPT=$transcript check 2 "$repo" 'git push origin x'
 printf '%s\n' '{"type":"tool_use","name":"Skill","input":{"skill":"review-loop"}}' >>"$transcript"
 TRANSCRIPT=$transcript check 0 "$repo" 'git push origin x'
 
+# Commits on top of the blocked HEAD (the review loop's fixes) go through once after the review;
+# the commit after that asks again.
+review() { printf '%s\n' '{"type":"tool_use","name":"Skill","input":{"skill":"code-loops:review-loop"}}' >>"$transcript"; }
+new_head ba
+printf '%s\n' '{"type":"user"}' '{"type":"assistant"}' >"$transcript"
+TRANSCRIPT=$transcript check 2 "$repo" 'git push origin x'
+review
+new_head bb
+new_head bc
+TRANSCRIPT=$transcript check 0 "$repo" 'git push origin x'
+TRANSCRIPT=$transcript check 0 "$repo" 'git push origin x'
+new_head bd
+TRANSCRIPT=$transcript check 2 "$repo" 'git push origin x'
+# Without the review after the block, the new commit is blocked.
+new_head be
+TRANSCRIPT=$transcript check 2 "$repo" 'git push origin x'
+TRANSCRIPT=$transcript check 2 "$repo" 'git push origin x'
+# A review spent on the retry of the blocked HEAD does not cover the next commit.
+new_head bf
+TRANSCRIPT=$transcript check 2 "$repo" 'git push origin x'
+review
+TRANSCRIPT=$transcript check 0 "$repo" 'git push origin x'
+new_head bg
+TRANSCRIPT=$transcript check 2 "$repo" 'git push origin x'
+# A HEAD that does not descend from the blocked one (amend, rebase) is blocked.
+review
+git -C "$repo" reset -q --hard HEAD~1
+new_head bh
+TRANSCRIPT=$transcript check 2 "$repo" 'git push origin x'
+# Another push of the descendant (other branch, other options) is not covered.
+new_head bi
+TRANSCRIPT=$transcript check 2 "$repo" 'git push origin x'
+review
+new_head bj
+TRANSCRIPT=$transcript check 2 "$repo" 'git push origin y'
+# Without a transcript the review cannot be seen, so the descendant is blocked.
+new_head bk
+check 2 "$repo" 'git push origin z'
+new_head bl
+check 2 "$repo" 'git push origin z'
+# The review must be in the session that was blocked; another session's does not count.
+new_head bm
+TRANSCRIPT=$transcript check 2 "$repo" 'git push origin v'
+printf '%s\n' '{"type":"assistant"}' '{"type":"tool_use","name":"Skill","input":{"skill":"code-loops:review-loop"}}' >"$work/c.jsonl"
+new_head bn
+TRANSCRIPT=$work/c.jsonl check 2 "$repo" 'git push origin v'
+# Without jq the same holds.
+new_head bo
+NOJQ=1 TRANSCRIPT=$transcript check 2 "$repo" 'git push origin w'
+review
+new_head bp
+NOJQ=1 TRANSCRIPT=$transcript check 0 "$repo" 'git push origin w'
+# Several pushes on one line: each follows its own block.
+new_head bq
+TRANSCRIPT=$transcript check 2 "$repo" 'git push origin a1; git push origin b1'
+review
+new_head br
+TRANSCRIPT=$transcript check 0 "$repo" 'git push origin a1; git push origin b1'
+
+# A bare `git push` on another branch does not follow the block of this one.
+branched=$work/branched
+git init -q "$branched"
+bcommit() { git -C "$branched" -c user.name=t -c user.email=t@t commit -q --allow-empty -m "$1"; }
+bcommit a
+TRANSCRIPT=$transcript check 2 "$branched" 'git push'
+review
+git -C "$branched" switch -q -c other
+bcommit b
+TRANSCRIPT=$transcript check 2 "$branched" 'git push'
+# A blocked HEAD that upstream already has (pushed from a terminal) ends its block.
+git init -q --bare "$work/remote.git"
+git -C "$branched" remote add origin "$work/remote.git"
+bcommit c
+TRANSCRIPT=$transcript check 2 "$branched" 'git push'
+review
+git -C "$branched" push -q -u origin other 2>/dev/null
+bcommit d
+TRANSCRIPT=$transcript check 2 "$branched" 'git push'
+# So does one pushed in another way, with no upstream set.
+bcommit e
+TRANSCRIPT=$transcript check 2 "$branched" 'git push origin y'
+review
+TRANSCRIPT=$transcript check 2 "$branched" 'git push origin HEAD:y'
+review
+TRANSCRIPT=$transcript check 0 "$branched" 'git push origin HEAD:y'
+git -C "$branched" push -q origin HEAD:y 2>/dev/null
+bcommit f
+TRANSCRIPT=$transcript check 2 "$branched" 'git push origin y'
+
 # The target of a redirection is not an argument of the push.
 new_head ad
 check 0 "$repo" 'git push --tags origin > out.log'
