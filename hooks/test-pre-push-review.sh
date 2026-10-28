@@ -48,6 +48,10 @@ check 2 "$repo" 'git push'
 check 0 "$work" 'git push'
 new_head e
 CLAUDE_PLUGIN_DATA=/proc/nope/x check 0 "$repo" 'git push'
+# Without CLAUDE_PLUGIN_DATA the record goes under CLAUDE_CONFIG_DIR.
+new_head cfg
+CLAUDE_PLUGIN_DATA='' CLAUDE_CONFIG_DIR=$work/config check 2 "$repo" 'git push'
+if [ -n "$(ls "$work/config/plugins/data/code-loops" 2>/dev/null)" ]; then echo "ok   record under CLAUDE_CONFIG_DIR"; else echo "FAIL record under CLAUDE_CONFIG_DIR"; fail=1; fi
 
 # The exemptions look only at the push's own words.
 check 0 "$repo" 'git push -d origin x'

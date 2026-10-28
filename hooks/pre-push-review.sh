@@ -103,7 +103,7 @@ judge() {
     return 0
   fi
 
-  state_dir=${CLAUDE_PLUGIN_DATA:-${HOME}/.claude/plugins/data/code-loops}
+  state_dir=${CLAUDE_PLUGIN_DATA:-${CLAUDE_CONFIG_DIR:-${HOME}/.claude}/plugins/data/code-loops}
   key=$(printf '%s %s %s' "$top" "$head" "$words" | { shasum || sha1sum || cksum; } 2>/dev/null | cut -d' ' -f1)
   [ -n "$key" ] || return 0
   marker=$state_dir/$key
