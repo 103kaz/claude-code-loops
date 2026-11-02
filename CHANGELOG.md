@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.6
+
+- The README ("With code-guard") says that when the effective `disableAllHooks` value is true, code-guard's verify loop does not run and the review loop's report does not notice. No behaviour change.
+
 ## 0.3.5
 
 - Without `CLAUDE_PLUGIN_DATA`, the pre-push hook keeps its record under `$CLAUDE_CONFIG_DIR/plugins/data/code-loops` (or `~/.claude/...` when `CLAUDE_CONFIG_DIR` is not set) instead of always under `~/.claude`.
