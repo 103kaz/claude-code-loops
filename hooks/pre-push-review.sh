@@ -5,7 +5,11 @@
 # (same HEAD, same push words) goes through once the transcript shows the review
 # loop was run after the block; without a readable transcript the retry goes
 # through as it is. Commits added on top of the blocked HEAD (the review loop's
-# fixes) go through once in the same way. After that a new commit, or a different
+# fixes) go through once in the same way: the new HEAD must descend from the blocked
+# one, the push and branch must be the same, the blocked session's transcript must show
+# the review loop, and no remote-tracking ref may have the blocked HEAD. The added
+# commits are not inspected and the grace has no time limit until used (a merge or
+# other work committed later counts too). After that a new commit, or a different
 # push of the same commit, asks again. Every push on the command line is judged,
 # not only the first.
 # It fails open: anything it cannot judge (unknown directory, no way to record
