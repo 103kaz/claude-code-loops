@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.7
+
+- The pre-push hook section of the README is shorter; the rules for the grace after a block are in the comment at the top of `hooks/pre-push-review.sh`. No behaviour change.
+
 ## 0.3.6
 
 - The README ("With code-guard") says that when the effective `disableAllHooks` value is true, code-guard's verify loop does not run and the review loop's report does not notice. No behaviour change.
